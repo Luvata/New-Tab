@@ -67,7 +67,7 @@ export function TaskCard({
               onChange={(event) => onAssignGoal(event.target.value || null)}
               onClick={(event) => event.stopPropagation()}
             >
-              <option value="">No goal</option>
+              <option value="">Misc</option>
               {goalOptions.map((goalOption) => (
                 <option key={goalOption.id} value={goalOption.id}>
                   {goalOption.title}

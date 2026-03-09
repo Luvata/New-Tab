@@ -38,7 +38,7 @@ export function QuickAddInput({ goals, onAddTask, inputRef }: QuickAddInputProps
       <label className="quick-add__goal">
         <span className="sr-only">Goal</span>
         <select value={goalId} onChange={(event) => setGoalId(event.target.value)}>
-          <option value="">No goal</option>
+          <option value="">Misc</option>
           {goals.map((goal) => (
             <option key={goal.id} value={goal.id}>
               {goal.title}

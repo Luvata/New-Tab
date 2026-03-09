@@ -24,14 +24,18 @@ function buildTaskText(tasks: Task[], goals: Goal[]): string {
 }
 
 export function UnifiedTaskEditor({ goals, tasks, editorRef, onCommit }: UnifiedTaskEditorProps) {
-  const [draft, setDraft] = useState(buildTaskText(tasks, goals));
+  const canonicalText = useMemo(() => buildTaskText(tasks, goals), [goals, tasks]);
+  const [draft, setDraft] = useState(canonicalText);
   const backdropRef = useRef<HTMLPreElement | null>(null);
   const localTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  const isEditingRef = useRef(false);
   const textareaRef = editorRef ?? localTextAreaRef;
 
   useEffect(() => {
-    setDraft(buildTaskText(tasks, goals));
-  }, [goals, tasks]);
+    if (!isEditingRef.current) {
+      setDraft(canonicalText);
+    }
+  }, [canonicalText]);
 
   const renderedLines = useMemo(() => {
     const goalOrder = goals.map((goal) => goal.id);
@@ -89,7 +93,13 @@ export function UnifiedTaskEditor({ goals, tasks, editorRef, onCommit }: Unified
           className="unified-task-editor__input"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => void onCommit(draft)}
+          onFocus={() => {
+            isEditingRef.current = true;
+          }}
+          onBlur={() => {
+            isEditingRef.current = false;
+            void onCommit(draft);
+          }}
           onScroll={(event) => {
             if (!backdropRef.current) {
               return;
