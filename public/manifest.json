@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "New Tab",
+  "version": "0.1.0",
+  "description": "A calm, local-first focus surface for your browser's new tab page.",
+  "permissions": ["storage"],
+  "chrome_url_overrides": {
+    "newtab": "index.html"
+  }
+}
