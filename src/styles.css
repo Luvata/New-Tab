@@ -567,7 +567,8 @@ button {
 .goal-lane__editor textarea,
 .setting-row select,
 .task-card__select select,
-.inline-edit--input {
+.inline-edit--input,
+.review-task-editor__add input {
   width: 100%;
   background: transparent;
   border: 0;
@@ -962,9 +963,15 @@ button {
   font-size: 0.98rem;
 }
 
+.goal-overview__item p {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+
 .goal-details__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1012,6 +1019,11 @@ button {
 .single-column-layout,
 .reviews-layout {
   margin-top: 24px;
+}
+
+.reviews-layout .section-card {
+  backdrop-filter: none;
+  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
 }
 
 .reviews-header {
@@ -1074,12 +1086,23 @@ button {
   border-color: color-mix(in srgb, var(--goal-color, var(--accent)) 20%, var(--surface-border));
 }
 
+.review-day-card {
+  display: grid;
+  gap: 14px;
+}
+
 .review-day-card__header,
-.review-day-card__columns,
 .weekly-day-card__header {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.review-day-card__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 18px;
+  align-items: start;
 }
 
 .review-day-card__columns > div,
@@ -1104,6 +1127,11 @@ button {
   font-weight: 600;
 }
 
+.review-day-card__meta {
+  margin: 0.35rem 0 0;
+  color: var(--text-soft);
+}
+
 .review-date-banner {
   margin: 16px 0 10px;
   padding: 6px 2px 2px;
@@ -1124,41 +1152,55 @@ button {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
+  margin-bottom: 4px;
 }
 
 .review-status-chip {
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 999px;
-  padding: 9px 12px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 14px;
   background: rgba(120, 94, 66, 0.08);
   color: var(--text-soft);
   font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
 .review-status-chip.is-active {
   color: var(--text);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.32),
+    0 6px 16px rgba(45, 35, 24, 0.08);
 }
 
 .review-status-chip.is-enough,
 .review-calendar__day.is-enough,
 .week-status-pill.is-enough,
 .weekly-day-card.is-enough {
-  background: color-mix(in srgb, #4fa97c 16%, var(--surface-strong));
+  background: color-mix(in srgb, #2f9e44 28%, var(--surface-strong));
+  border-color: color-mix(in srgb, #2f9e44 52%, var(--surface-border));
+  color: color-mix(in srgb, #1d5d2a 78%, var(--text));
 }
 
 .review-status-chip.is-not-enough,
 .review-calendar__day.is-not-enough,
 .week-status-pill.is-not-enough,
 .weekly-day-card.is-not-enough {
-  background: color-mix(in srgb, #d27b6a 16%, var(--surface-strong));
+  background: color-mix(in srgb, #c92a2a 24%, var(--surface-strong));
+  border-color: color-mix(in srgb, #c92a2a 48%, var(--surface-border));
+  color: color-mix(in srgb, #7a1919 78%, var(--text));
 }
 
 .review-status-chip.is-day-off,
 .review-calendar__day.is-day-off,
 .week-status-pill.is-day-off,
 .weekly-day-card.is-day-off {
-  background: color-mix(in srgb, #7d8fb4 16%, var(--surface-strong));
+  background: color-mix(in srgb, #5c677d 28%, var(--surface-strong));
+  border-color: color-mix(in srgb, #5c677d 54%, var(--surface-border));
+  color: color-mix(in srgb, #303746 82%, var(--text));
 }
 
 .review-task-list {
@@ -1172,6 +1214,15 @@ button {
   align-items: center;
   gap: 0.7rem;
   padding: 8px 0;
+}
+
+.review-task-row--editable {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.24);
 }
 
 .review-task-row__dot {
@@ -1193,6 +1244,66 @@ button {
 
 .review-task-row.is-active .review-task-row__dot {
   background: var(--accent);
+}
+
+.review-task-row__title {
+  min-width: 0;
+  font-weight: 500;
+}
+
+.review-task-row__title.inline-edit--button,
+.review-task-row__title.inline-edit--input {
+  width: 100%;
+}
+
+.review-task-row__delete {
+  padding-inline: 13px;
+}
+
+.review-task-toggle {
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(120, 94, 66, 0.1);
+  color: var(--text);
+}
+
+.review-task-toggle span {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+}
+
+.review-task-toggle.is-done {
+  background: color-mix(in srgb, #4fa97c 18%, var(--surface-strong));
+  color: #2f7d5d;
+}
+
+.review-task-toggle.is-done span {
+  background: currentColor;
+}
+
+.review-task-editor {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.review-task-editor__add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.review-task-editor__add input {
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--goal-color, var(--accent)) 20%, var(--surface-border));
+  background: rgba(255, 255, 255, 0.34);
+  padding: 12px 14px;
 }
 
 .yes-no-card {
@@ -1279,6 +1390,8 @@ button {
 .review-goal-period {
   display: grid;
   gap: 14px;
+  content-visibility: auto;
+  contain-intrinsic-size: 960px;
 }
 
 .review-goal-period__header {
@@ -1307,6 +1420,13 @@ button {
   display: grid;
   gap: 0.25rem;
   background: color-mix(in srgb, var(--goal-color, var(--accent)) 10%, var(--surface-strong));
+}
+
+.history-day:hover,
+.review-mode-toggle__item:hover,
+.review-status-chip:hover,
+.week-status-pill:hover {
+  transform: none;
 }
 
 .week-status-pill__marker {
@@ -1571,12 +1691,14 @@ kbd {
   }
 
   .quick-add,
-  .goal-form {
+  .goal-form,
+  .review-task-editor__add {
     grid-template-columns: 1fr;
   }
 
   .goal-lane__header,
-  .goal-details__grid {
+  .goal-details__grid,
+  .review-task-row--editable {
     grid-template-columns: 1fr;
     display: grid;
   }

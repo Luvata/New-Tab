@@ -7,6 +7,7 @@ interface GoalDetailsEditorProps {
   onSave: (updates: {
     description?: string;
     topPriority?: string;
+    topPriorityDescription?: string;
     targetEndDate?: string | null;
   }) => Promise<void>;
 }
@@ -14,18 +15,21 @@ interface GoalDetailsEditorProps {
 export function GoalDetailsEditor({ goal, onSave }: GoalDetailsEditorProps) {
   const [description, setDescription] = useState(goal.description ?? '');
   const [topPriority, setTopPriority] = useState(goal.topPriority ?? '');
+  const [topPriorityDescription, setTopPriorityDescription] = useState(goal.topPriorityDescription ?? '');
   const [targetEndDate, setTargetEndDate] = useState(toDateTimeLocalInput(goal.targetEndDate));
 
   useEffect(() => {
     setDescription(goal.description ?? '');
     setTopPriority(goal.topPriority ?? '');
+    setTopPriorityDescription(goal.topPriorityDescription ?? '');
     setTargetEndDate(toDateTimeLocalInput(goal.targetEndDate));
-  }, [goal.description, goal.targetEndDate, goal.topPriority]);
+  }, [goal.description, goal.targetEndDate, goal.topPriority, goal.topPriorityDescription]);
 
   async function commit() {
     await onSave({
       description,
       topPriority,
+      topPriorityDescription,
       targetEndDate: targetEndDate || null
     });
   }
@@ -51,6 +55,16 @@ export function GoalDetailsEditor({ goal, onSave }: GoalDetailsEditorProps) {
             onChange={(event) => setTopPriority(event.target.value)}
             onBlur={() => void commit()}
             placeholder="What matters most first?"
+          />
+        </label>
+        <label className="goal-details__field">
+          <span>Priority description</span>
+          <textarea
+            value={topPriorityDescription}
+            onChange={(event) => setTopPriorityDescription(event.target.value)}
+            onBlur={() => void commit()}
+            placeholder="Use this box to describe the priority above. What's success? What's not needed/extra?"
+            rows={3}
           />
         </label>
         <label className="goal-details__field">

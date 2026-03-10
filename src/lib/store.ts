@@ -15,7 +15,7 @@ import {
   recalculatePlan
 } from './state';
 import { readPersistedState, subscribeToPersistedState, writePersistedState } from './storage';
-import type { AppSnapshot, AppState, Goal, ReviewPeriod, TimerMinutes, ViewMode, WorkspaceTab } from '../types';
+import type { AppSnapshot, AppState, Goal, ReviewPeriod, TaskStatus, TimerMinutes, ViewMode, WorkspaceTab } from '../types';
 
 type Listener = () => void;
 type Mutator = (draft: AppState, today: string) => void;
@@ -23,10 +23,13 @@ type GoalInput = {
   title: string;
   description?: string;
   topPriority?: string;
+  topPriorityDescription?: string;
   targetEndDate?: string | null;
   color?: string;
 };
-type GoalUpdate = Partial<Pick<Goal, 'title' | 'description' | 'topPriority' | 'targetEndDate' | 'color'>>;
+type GoalUpdate = Partial<
+  Pick<Goal, 'title' | 'description' | 'topPriority' | 'topPriorityDescription' | 'targetEndDate' | 'color'>
+>;
 
 function normalizeText(value: string | undefined): string | undefined {
   const normalized = value?.trim();
@@ -180,14 +183,15 @@ class AppStore {
     });
   }
 
-  async addTask(title: string, goalId: string | null = null): Promise<void> {
+  async addTask(title: string, goalId: string | null = null, dateBucket?: string): Promise<void> {
     const normalizedTitle = title.trim();
     if (!normalizedTitle) {
       return;
     }
 
     await this.updateState((draft, today) => {
-      const plan = ensureDailyPlan(draft, today);
+      const targetDate = dateBucket ?? today;
+      const plan = ensureDailyPlan(draft, targetDate);
       const id = createId('task');
       const timestamp = nowIso();
 
@@ -197,17 +201,17 @@ class AppStore {
         goalId,
         status: 'active',
         sortOrder: makeTaskSortOrder(plan.taskIds, draft.tasks),
-        dateBucket: today,
+        dateBucket: targetDate,
         createdAt: timestamp,
         updatedAt: timestamp,
         completedAt: null
       };
 
       plan.taskIds.push(id);
-      if (!plan.currentTaskId) {
+      if (targetDate === today && !plan.currentTaskId) {
         plan.currentTaskId = id;
       }
-      recalculatePlan(draft, today);
+      recalculatePlan(draft, targetDate);
     });
   }
 
@@ -261,25 +265,48 @@ class AppStore {
   }
 
   async completeTask(taskId: string): Promise<void> {
-    await this.updateState((draft, today) => {
+    await this.updateState((draft) => {
       const task = draft.tasks[taskId];
-      const plan = ensureDailyPlan(draft, today);
       if (!task || task.status !== 'active') {
         return;
       }
 
+      const plan = ensureDailyPlan(draft, task.dateBucket);
       task.status = 'done';
       task.completedAt = nowIso();
       task.updatedAt = task.completedAt;
 
       if (plan.currentTaskId === taskId) {
-        plan.currentTaskId = getNextActiveTaskId(draft, today, taskId);
-        if (plan.currentTaskId === taskId) {
-          plan.currentTaskId = null;
-        }
+        plan.currentTaskId = getNextActiveTaskId(draft, task.dateBucket, taskId);
       }
 
-      recalculatePlan(draft, today);
+      recalculatePlan(draft, task.dateBucket);
+    });
+  }
+
+  async updateTaskStatus(taskId: string, status: TaskStatus): Promise<void> {
+    await this.updateState((draft, today) => {
+      const task = draft.tasks[taskId];
+      if (!task || task.status === status) {
+        return;
+      }
+
+      const plan = ensureDailyPlan(draft, task.dateBucket);
+      const timestamp = nowIso();
+
+      task.status = status;
+      task.completedAt = status === 'done' ? timestamp : null;
+      task.updatedAt = timestamp;
+
+      if (status === 'done' && plan.currentTaskId === taskId) {
+        plan.currentTaskId = getNextActiveTaskId(draft, task.dateBucket, taskId);
+      }
+
+      if (status === 'active' && task.dateBucket === today && !plan.currentTaskId) {
+        plan.currentTaskId = taskId;
+      }
+
+      recalculatePlan(draft, task.dateBucket);
     });
   }
 
@@ -394,6 +421,7 @@ class AppStore {
         color: input.color ?? getDefaultGoalColor(draft.goals),
         description: normalizeText(input.description),
         topPriority: normalizeText(input.topPriority),
+        topPriorityDescription: normalizeText(input.topPriorityDescription),
         targetEndDate: input.targetEndDate || null,
         isArchived: false,
         sortOrder: makeGoalSortOrder(draft.goals),
@@ -441,6 +469,10 @@ class AppStore {
 
       if ('topPriority' in updates) {
         goal.topPriority = normalizeText(updates.topPriority);
+      }
+
+      if ('topPriorityDescription' in updates) {
+        goal.topPriorityDescription = normalizeText(updates.topPriorityDescription);
       }
 
       if ('targetEndDate' in updates) {
@@ -525,6 +557,12 @@ class AppStore {
   ): Promise<void> {
     await this.updateState((draft) => {
       const key = `${period}:${periodKey}:${scopeId ?? 'overall'}`;
+      const normalizedContent = content.trim();
+      if (!normalizedContent) {
+        delete draft.reviews[key];
+        return;
+      }
+
       const timestamp = nowIso();
       const existing = draft.reviews[key];
 
@@ -533,7 +571,7 @@ class AppStore {
         period,
         periodKey,
         scopeId,
-        content,
+        content: normalizedContent,
         createdAt: existing?.createdAt ?? timestamp,
         updatedAt: timestamp
       };

@@ -31,6 +31,7 @@ export interface Goal {
   notes?: string;
   description?: string;
   topPriority?: string;
+  topPriorityDescription?: string;
   targetEndDate?: string | null;
   isArchived: boolean;
   sortOrder: number;

@@ -6,12 +6,24 @@ interface ReviewNotebookProps {
   description?: string;
   value: string;
   template: string;
+  lockedTemplate?: boolean;
+  prefillTemplate?: boolean;
   onSave: (value: string) => Promise<void>;
   className?: string;
   style?: CSSProperties;
 }
 
-export function ReviewNotebook({ title, description, value, template, onSave, className, style }: ReviewNotebookProps) {
+export function ReviewNotebook({
+  title,
+  description,
+  value,
+  template,
+  lockedTemplate = false,
+  prefillTemplate = true,
+  onSave,
+  className,
+  style
+}: ReviewNotebookProps) {
   const sanitize = (content: string) => {
     const trimmed = content.trimStart();
     if (!trimmed.startsWith('Say more about ')) {
@@ -21,11 +33,36 @@ export function ReviewNotebook({ title, description, value, template, onSave, cl
     return trimmed.replace(/^Say more about .*?(?:\n\n|\n|$)/, '').trimStart();
   };
 
-  const [draft, setDraft] = useState(sanitize(value) || template);
+  const withLockedTemplate = (content: string) => {
+    if (!lockedTemplate) {
+      return content;
+    }
+
+    const normalizedTemplate = template.trimEnd();
+    const trimmedContent = content.trim();
+
+    if (!trimmedContent) {
+      return `${normalizedTemplate}\n\n`;
+    }
+
+    if (trimmedContent.startsWith(normalizedTemplate)) {
+      return content;
+    }
+
+    return `${normalizedTemplate}\n\n${content.trimStart()}`;
+  };
+
+  const buildDraft = (content: string) => {
+    const sanitized = sanitize(content);
+    const fallback = prefillTemplate ? template : '';
+    return withLockedTemplate(sanitized || fallback);
+  };
+
+  const [draft, setDraft] = useState(buildDraft(value));
 
   useEffect(() => {
-    setDraft(sanitize(value) || template);
-  }, [template, value]);
+    setDraft(buildDraft(value));
+  }, [lockedTemplate, prefillTemplate, template, value]);
 
   return (
     <section className={`review-notebook ${className ?? ''}`.trim()} style={style}>
@@ -38,7 +75,11 @@ export function ReviewNotebook({ title, description, value, template, onSave, cl
       <textarea
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => void onSave(draft)}
+        onBlur={() => {
+          const nextDraft = buildDraft(draft);
+          setDraft(nextDraft);
+          void onSave(nextDraft);
+        }}
         rows={Math.max(12, draft.split('\n').length + 2)}
       />
     </section>

@@ -7,7 +7,6 @@ import type { Goal, Task, ViewMode } from '../types';
 interface CurrentTaskHeroProps {
   viewMode: ViewMode;
   dateLabel: string;
-  clockLabel?: string;
   currentTask: Task | null;
   currentGoal: Goal | null;
   showGoalChip: boolean;
@@ -25,7 +24,6 @@ interface CurrentTaskHeroProps {
 export function CurrentTaskHero({
   viewMode,
   dateLabel,
-  clockLabel,
   currentTask,
   currentGoal,
   showGoalChip,
@@ -43,8 +41,30 @@ export function CurrentTaskHero({
   const isZen = viewMode === 'zen';
   const isEdit = viewMode === 'edit';
   const goalLabel = currentGoal?.title ?? 'Misc';
+  const [clockLabel, setClockLabel] = useState('');
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const completeTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isZen) {
+      setClockLabel('');
+      return;
+    }
+
+    const formatClockLabel = (now: Date) =>
+      new Intl.DateTimeFormat(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit'
+      }).format(now);
+
+    setClockLabel(formatClockLabel(new Date()));
+    const timer = window.setInterval(() => {
+      setClockLabel(formatClockLabel(new Date()));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [isZen]);
 
   useEffect(() => {
     setCompletingTaskId(null);

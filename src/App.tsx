@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { CurrentTaskHero } from './components/CurrentTaskHero';
 import { EmptyState } from './components/EmptyState';
+import { GoalCountdownText } from './components/GoalCountdownText';
 import { GoalDetailsEditor } from './components/GoalDetailsEditor';
 import { GoalChip } from './components/GoalChip';
 import { HistoryDayCard } from './components/HistoryDayCard';
 import { InlineEditableText } from './components/InlineEditableText';
 import { ReviewCalendar } from './components/ReviewCalendar';
 import { ReviewNotebook } from './components/ReviewNotebook';
+import { ReviewTaskEditor } from './components/ReviewTaskEditor';
 import { SectionCard } from './components/SectionCard';
 import { TaskCard } from './components/TaskCard';
 import { UnifiedTaskEditor } from './components/UnifiedTaskEditor';
@@ -23,7 +25,6 @@ import {
   getMonthDates,
   getMonthKey,
   getNextMonthLabel,
-  parseGoalTargetDate,
   getWeekDates,
   getWeekStartKey,
   parseDateKey
@@ -39,6 +40,7 @@ type GoalBucket = {
   color: string;
   description?: string;
   topPriority?: string;
+  topPriorityDescription?: string;
   targetEndDate?: string | null;
   goalId: string | null;
   tasks: Task[];
@@ -101,6 +103,7 @@ function buildGoalBuckets(tasks: Task[], goals: Goal[]): GoalBucket[] {
       color: goal.color,
       description: goal.description,
       topPriority: goal.topPriority,
+      topPriorityDescription: goal.topPriorityDescription,
       targetEndDate: goal.targetEndDate,
       goalId: goal.id as string | null,
       tasks: tasks.filter((task) => task.goalId === goal.id)
@@ -111,6 +114,7 @@ function buildGoalBuckets(tasks: Task[], goals: Goal[]): GoalBucket[] {
       color: 'var(--accent)',
       description: 'Tasks that do not belong to a specific goal yet.',
       topPriority: undefined,
+      topPriorityDescription: undefined,
       targetEndDate: null,
       goalId: null,
       tasks: tasks.filter((task) => task.goalId == null)
@@ -128,6 +132,10 @@ function buildWeeklyReviewTemplate(): string {
 
 function buildWeeklyRemarksTemplate(): string {
   return `1. What are you hoping to get out of this week's review?\n\n\n2. How are you feeling about the balance of focus between your goals?\n\n`;
+}
+
+function buildWeeklyMiscTemplate(): string {
+  return `How are your keystone habits (sleep, exercise, ) going?\n\n`;
 }
 
 function buildMonthlyGoalTemplate(_goalTitle: string, nextMonthLabel: string): string {
@@ -174,38 +182,6 @@ function describeGoalCountdown(targetEndDate: string | null | undefined, today: 
   return `${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue`;
 }
 
-function describeGoalCountdownPrecise(targetEndDate: string | null | undefined, now: Date): string | null {
-  if (!targetEndDate) {
-    return null;
-  }
-
-  const target = parseGoalTargetDate(targetEndDate);
-  const diffMs = target.getTime() - now.getTime();
-  const overdue = diffMs < 0;
-  const totalSeconds = Math.max(0, Math.floor(Math.abs(diffMs) / 1000));
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  const parts = [
-    days > 0 ? `${days}d` : null,
-    `${String(hours).padStart(2, '0')}h`,
-    `${String(minutes).padStart(2, '0')}m`,
-    `${String(seconds).padStart(2, '0')}s`
-  ].filter(Boolean);
-
-  return `${parts.join(' ')} ${overdue ? 'overdue' : 'left'}`;
-}
-
-function formatClockLabel(now: Date): string {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit'
-  }).format(now);
-}
-
 export default function App() {
   const snapshot = useAppSnapshot();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -214,6 +190,7 @@ export default function App() {
   const [newGoalTitle, setNewGoalTitle] = useState('');
   const [newGoalDescription, setNewGoalDescription] = useState('');
   const [newGoalTopPriority, setNewGoalTopPriority] = useState('');
+  const [newGoalTopPriorityDescription, setNewGoalTopPriorityDescription] = useState('');
   const [newGoalEndDate, setNewGoalEndDate] = useState('');
   const [newGoalColor, setNewGoalColor] = useState(GOAL_COLORS[0]);
   const [dailyReviewDate, setDailyReviewDate] = useState<string | null>(null);
@@ -223,7 +200,6 @@ export default function App() {
   const [dataMessage, setDataMessage] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
-  const [clockNow, setClockNow] = useState(() => new Date());
   const firstLaneRef = useRef<HTMLTextAreaElement | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -261,7 +237,30 @@ export default function App() {
   const dailyReviewTasks = (state.dailyPlans[selectedDailyReviewDate]?.taskIds ?? [])
     .map((taskId) => state.tasks[taskId])
     .filter(Boolean);
-  const dailyReviewBuckets = buildGoalBuckets(dailyReviewTasks, activeGoals).filter((bucket) => bucket.tasks.length > 0);
+  const dailyReviewSections = [
+    ...activeGoals.map((goal) => ({
+      key: goal.id,
+      goalId: goal.id as string | null,
+      title: goal.title,
+      color: goal.color,
+      topPriority: goal.topPriority,
+      topPriorityDescription: goal.topPriorityDescription,
+      targetEndDate: goal.targetEndDate,
+      notesScopeId: `${goal.id}:notes`,
+      supportsReflection: true
+    })),
+    {
+      key: 'misc',
+      goalId: null,
+      title: 'Misc',
+      color: 'var(--accent)',
+      topPriority: undefined,
+      topPriorityDescription: undefined,
+      targetEndDate: null,
+      notesScopeId: null,
+      supportsReflection: false
+    }
+  ];
   const weeklyDates = getWeekDates(selectedWeeklyReviewKey);
   const weeklyTimeline = weeklyDates.map((dateKey) => {
     const tasks = (state.dailyPlans[dateKey]?.taskIds ?? [])
@@ -333,7 +332,7 @@ export default function App() {
     state.reviews[`${period}:${periodKey}:${scopeId ?? 'overall'}`]?.content ?? '';
   const getDailyGoalVerdict = (dateKey: string, goalId: string) =>
     (getReviewValue('daily', dateKey, goalId) as GoalVerdict | '') || null;
-  const getTasksForGoalOnDate = (goalId: string, dateKey: string) =>
+  const getTasksForGoalOnDate = (goalId: string | null, dateKey: string) =>
     ((state.dailyPlans[dateKey]?.taskIds ?? []).map((taskId) => state.tasks[taskId]).filter(Boolean) as Task[]).filter(
       (task) => task.goalId === goalId
     );
@@ -349,11 +348,6 @@ export default function App() {
     document.documentElement.style.setProperty('--hero-task-font', getTaskFontStack(state.preferences.heroTaskFont));
     document.documentElement.style.setProperty('--zen-task-font', getTaskFontStack(state.preferences.heroTaskFont));
   }, [state.preferences.heroTaskFont, theme]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setClockNow(new Date()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -629,7 +623,6 @@ export default function App() {
         <CurrentTaskHero
           viewMode={viewMode}
           dateLabel={formatLongDate(today)}
-          clockLabel={formatClockLabel(clockNow)}
           currentTask={currentTask}
           currentGoal={selectedGoal}
           showGoalChip={state.preferences.showGoalChip}
@@ -725,12 +718,14 @@ export default function App() {
                 title: newGoalTitle,
                 description: newGoalDescription,
                 topPriority: newGoalTopPriority,
+                topPriorityDescription: newGoalTopPriorityDescription,
                 targetEndDate: newGoalEndDate || null,
                 color: newGoalColor
               });
               setNewGoalTitle('');
               setNewGoalDescription('');
               setNewGoalTopPriority('');
+              setNewGoalTopPriorityDescription('');
               setNewGoalEndDate('');
               setNewGoalColor(GOAL_COLORS[(activeGoals.length + 1) % GOAL_COLORS.length]);
             }}
@@ -752,6 +747,12 @@ export default function App() {
               value={newGoalTopPriority}
               onChange={(event) => setNewGoalTopPriority(event.target.value)}
               placeholder="Top priority"
+            />
+            <textarea
+              value={newGoalTopPriorityDescription}
+              onChange={(event) => setNewGoalTopPriorityDescription(event.target.value)}
+              placeholder="Use this box to describe the priority above. What's success? What's not needed/extra?"
+              rows={3}
             />
             <input type="datetime-local" value={newGoalEndDate} onChange={(event) => setNewGoalEndDate(event.target.value)} />
             <div className="goal-palette" role="listbox" aria-label="Goal color">
@@ -810,6 +811,7 @@ export default function App() {
                       <div className="goal-overview__item">
                         <span>Top priority</span>
                         <strong>{goal.topPriority}</strong>
+                        {goal.topPriorityDescription ? <p>{goal.topPriorityDescription}</p> : null}
                       </div>
                     ) : null}
                     {goal.targetEndDate ? (
@@ -821,7 +823,9 @@ export default function App() {
                     {goal.targetEndDate ? (
                       <div className="goal-overview__item">
                         <span>Countdown</span>
-                        <strong>{describeGoalCountdownPrecise(goal.targetEndDate, clockNow)}</strong>
+                        <strong>
+                          <GoalCountdownText targetEndDate={goal.targetEndDate} />
+                        </strong>
                       </div>
                     ) : null}
                   </div>
@@ -908,63 +912,75 @@ export default function App() {
               </div>
 
               <div className="review-day-list">
-                {activeGoals.length > 0 ? (
-                  activeGoals.map((goal) => {
-                    const tasks = getTasksForGoalOnDate(goal.id, selectedDailyReviewDate);
-                    const verdict = getDailyGoalVerdict(selectedDailyReviewDate, goal.id);
+                {dailyReviewSections.map((section) => {
+                  const tasks = getTasksForGoalOnDate(section.goalId, selectedDailyReviewDate);
+                  const verdict = section.goalId ? getDailyGoalVerdict(selectedDailyReviewDate, section.goalId) : null;
 
-                    return (
-                      <section
-                        className={`review-day-card ${verdict ? `is-${verdict}` : ''}`.trim()}
-                        key={goal.id}
-                        style={{ ['--goal-color' as string]: goal.color }}
-                      >
-                        <div className="review-day-card__header">
-                          <div>
-                            <h3>{goal.title}</h3>
-                            {goal.topPriority ? <p className="review-day-card__subtle">{goal.topPriority}</p> : null}
-                          </div>
+                  return (
+                    <section
+                      className={`review-day-card ${verdict ? `is-${verdict}` : ''}`.trim()}
+                      key={section.key}
+                      style={{ ['--goal-color' as string]: section.color }}
+                    >
+                      <div className="review-day-card__header">
+                        <div>
+                          <h3>{section.title}</h3>
+                          {section.topPriority ? <p className="review-day-card__subtle">{section.topPriority}</p> : null}
+                          {section.targetEndDate ? (
+                            <p className="review-day-card__meta">Target date: {formatGoalTargetDate(section.targetEndDate)}</p>
+                          ) : null}
+                        </div>
+                        {section.supportsReflection ? (
                           <div className="review-verdict-row">
                             {GOAL_VERDICTS.map((option) => (
                               <button
                                 key={option}
                                 type="button"
                                 className={`review-status-chip ${verdict === option ? `is-active is-${option}` : ''}`.trim()}
-                                onClick={() => void appStore.saveReviewEntry('daily', selectedDailyReviewDate, option, goal.id)}
+                                onClick={() =>
+                                  section.goalId
+                                    ? void appStore.saveReviewEntry(
+                                        'daily',
+                                        selectedDailyReviewDate,
+                                        verdict === option ? '' : option,
+                                        section.goalId
+                                      )
+                                    : undefined
+                                }
                               >
                                 {verdictLabel(option)}
                               </button>
                             ))}
                           </div>
+                        ) : null}
+                      </div>
+                      <div className="review-day-card__columns">
+                        <div>
+                          <ReviewTaskEditor
+                            tasks={tasks}
+                            onAddTask={(title) => appStore.addTask(title, section.goalId, selectedDailyReviewDate)}
+                            onDeleteTask={(taskId) => handleDeleteTask(taskId)}
+                            onSaveTitle={(taskId, title) => appStore.updateTaskTitle(taskId, title)}
+                            onUpdateTaskStatus={(taskId, status) => appStore.updateTaskStatus(taskId, status)}
+                          />
                         </div>
-                        <ReviewNotebook
-                          value={getReviewValue('daily', selectedDailyReviewDate, `${goal.id}:notes`)}
-                          template={buildDailyReviewTemplate()}
-                          onSave={(value) => appStore.saveReviewEntry('daily', selectedDailyReviewDate, value, `${goal.id}:notes`)}
-                          className="review-notebook--compact review-notebook--goal"
-                          style={{ ['--goal-color' as string]: goal.color }}
-                        />
-                        <div className="review-task-list">
-                          {tasks.length > 0 ? (
-                            tasks.map((task) => (
-                              <div className={`review-task-row is-${task.status}`.trim()} key={task.id}>
-                                <span className="review-task-row__dot" />
-                                <span>{task.title}</span>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="review-empty-strip" aria-hidden="true" />
-                          )}
-                        </div>
-                      </section>
-                    );
-                  })
-                ) : (
-                  <EmptyState
-                    title="No goals to review"
-                    description="Create a goal first."
-                  />
-                )}
+                        {section.supportsReflection && section.notesScopeId ? (
+                          <div>
+                            <ReviewNotebook
+                              value={getReviewValue('daily', selectedDailyReviewDate, section.notesScopeId)}
+                              template={buildDailyReviewTemplate()}
+                              onSave={(value) =>
+                                appStore.saveReviewEntry('daily', selectedDailyReviewDate, value, section.notesScopeId)
+                              }
+                              className="review-notebook--compact review-notebook--goal"
+                              style={{ ['--goal-color' as string]: section.color }}
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+                    </section>
+                  );
+                })}
                 {dailyReviewTasks.length === 0 ? (
                   <section className="review-day-card is-day-off">
                     <div className="review-day-card__header">
@@ -995,6 +1011,13 @@ export default function App() {
               </div>
 
               <div className="reviews-stack">
+                <ReviewNotebook
+                  title="Week Remarks"
+                  value={getReviewValue('weekly', selectedWeeklyReviewKey, 'remarks')}
+                  template={buildWeeklyRemarksTemplate()}
+                  lockedTemplate
+                  onSave={(value) => appStore.saveReviewEntry('weekly', selectedWeeklyReviewKey, value, 'remarks')}
+                />
                 {activeGoals.map((goal) => (
                   <section className="review-goal-period" key={goal.id} style={{ ['--goal-color' as string]: goal.color }}>
                     <div className="review-goal-period__header">
@@ -1059,25 +1082,57 @@ export default function App() {
                           className="review-notebook--goal"
                           style={{ ['--goal-color' as string]: goal.color }}
                         />
-                        <label className="weekly-priority-row">
-                          <span>What are your priorities for the upcoming week? Update your Top Priority below.</span>
-                          <input
-                            type="text"
-                            value={goal.topPriority ?? ''}
-                            placeholder="Update next week's top priority"
-                            onChange={(event) => void appStore.updateGoal(goal.id, { topPriority: event.target.value })}
-                          />
-                        </label>
                       </div>
                     </div>
                   </section>
                 ))}
-                <ReviewNotebook
-                  title="Overall remarks"
-                  value={getReviewValue('weekly', selectedWeeklyReviewKey, 'remarks')}
-                  template={buildWeeklyRemarksTemplate()}
-                  onSave={(value) => appStore.saveReviewEntry('weekly', selectedWeeklyReviewKey, value, 'remarks')}
-                />
+                <section className="review-goal-period" style={{ ['--goal-color' as string]: 'var(--accent)' }}>
+                  <div className="review-goal-period__header">
+                    <div>
+                      <h3>Misc</h3>
+                      <p className="review-day-card__subtle">Tasks tracked with `&` and anything without a goal.</p>
+                    </div>
+                  </div>
+                  <div className="review-goal-period__content">
+                    <div className="review-goal-period__left">
+                      <div className="weekly-days">
+                        {weeklyDates.map((dateKey) => {
+                          const tasks = getTasksForGoalOnDate(null, dateKey);
+
+                          return (
+                            <section className="weekly-day-card" key={`misc-${dateKey}-list`}>
+                              <header className="weekly-day-card__header">
+                                <strong>{formatLongDate(dateKey)}</strong>
+                              </header>
+                              {tasks.length > 0 ? (
+                                <div className="review-task-list">
+                                  {tasks.map((task) => (
+                                    <div className={`review-task-row is-${task.status}`.trim()} key={task.id}>
+                                      <span className="review-task-row__dot" />
+                                      <span>{task.title}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="review-empty-strip" aria-hidden="true" />
+                              )}
+                            </section>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="review-goal-period__right">
+                      <ReviewNotebook
+                        value={getReviewValue('weekly', selectedWeeklyReviewKey, 'misc')}
+                        template={buildWeeklyMiscTemplate()}
+                        lockedTemplate
+                        onSave={(value) => appStore.saveReviewEntry('weekly', selectedWeeklyReviewKey, value, 'misc')}
+                        className="review-notebook--goal"
+                        style={{ ['--goal-color' as string]: 'var(--accent)' }}
+                      />
+                    </div>
+                  </div>
+                </section>
               </div>
             </SectionCard>
           </div>
